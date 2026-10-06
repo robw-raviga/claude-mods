@@ -1,13 +1,13 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
 
 import type { Chatter } from '../types'
 
-// A reply counts as chatter once the message it sits in also made a tool call.
-// We remember those texts and hide any assistant block whose text is one of them.
+// When a tool call starts, every reply drawn so far this turn is chatter: a newer
+// message is on its way. Rows are known by the message id the engine draws them under.
 
 const isOn = atom({ plugin: 'quiet-mode', key: 'isOn' } as const, true)
-const chatter = atom({ plugin: 'quiet-mode', key: 'chatter' } as const, [])
+const chatter = atom({ plugin: 'quiet-mode', key: 'chatter' } as const, [] as Chatter)
 const toolCount = atom({ plugin: 'quiet-mode', key: 'toolCount' } as const, 0)
 
 const MAX_CHATTER = 500
@@ -24,22 +24,26 @@ const showStatus = async ($: EngineInterface, isWorking: boolean) => {
   )
 }
 
-const chatterTextFor = async ($: EngineInterface, toolUseId: string) => {
-  const messages = await $.session.messages()
-  const owner = messages.findLast(
-    m => m.role === 'assistant' && m.toolUses.some(t => t.tool_use_id === toolUseId),
-  )
+// Like CSS display: none, the app's own drawing stays in the tree, just not shown.
+const hide = async ($: EngineInterface, e: RenderInput, next: (e: RenderInput) => Promise<RenderElement>) => {
+  const drawn = await next(e)
+  const { Box } = $.ui.resolve(e)
 
-  return owner?.text.trim() ?? ''
-}
-
-const isChatter = (list: Chatter, text: string) => {
-  const block = text.trim()
-
-  return block !== '' && list.some(full => full.includes(block))
+  return <Box display="none">{drawn}</Box>
 }
 
 export const register: Register = on => {
+  // A draw hook may not write state, so replies drawn this turn wait here until a tool call
+  // marks them. Replies drawn outside a turn (earlier finals, a redraw after reload) are settled.
+  let isTurnLive = false
+  let drawnThisTurn = new Set<string>()
+  const settled = new Set<string>()
+
+  const settleTurn = () => {
+    drawnThisTurn.forEach(id => settled.add(id))
+    drawnThisTurn = new Set()
+  }
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'quiet',
@@ -58,17 +62,18 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    settleTurn()
+    isTurnLive = true
     await update($, toolCount, () => 0)
 
     return next(e)
   })
 
   on('tool.call', async ($, e, next) => {
-    const text = await chatterTextFor($, e.tool_use_id)
-    if (text !== '') {
-      await update($, chatter, list =>
-        list.includes(text) ? list : [...list, text].slice(-MAX_CHATTER),
-      )
+    const newlyChatter = [...drawnThisTurn]
+    drawnThisTurn = new Set()
+    if (newlyChatter.length > 0) {
+      await update($, chatter, list => [...list, ...newlyChatter].slice(-MAX_CHATTER))
     }
     await update($, toolCount, n => n + 1)
     await showStatus($, true)
@@ -77,29 +82,35 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) await showStatus($, false)
+    if (e.agentId === undefined) {
+      settleTurn()
+      isTurnLive = false
+      await showStatus($, false)
+    }
 
     return next(e)
   })
 
-  // Tool rows: hidden whole while quiet mode is on.
+  // Tool rows: hidden while quiet mode is on. The desktop already folds them into its own
+  // "Ran N commands" summary, so there they pass through and the fold opens with content.
   for (const component of ['ToolUse', 'ToolResult', 'ToolGroup'] as const) {
     on('ui.render', { component }, async ($, e, next) => {
-      if (!(await read($, isOn))) return next(e)
+      if (e.surface === 'desktop' || !(await read($, isOn))) return next(e)
 
-      const { Box } = $.ui.resolve(e)
-
-      return <Box />
+      return hide($, e, next)
     })
   }
 
-  // Claude's text: hidden once it turns out to be chatter, so the latest reply always shows.
+  // Claude's text: hidden once a tool call follows it, so the latest reply always shows.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (!(await read($, isOn))) return next(e)
-    if (!isChatter(await read($, chatter), e.props.text)) return next(e)
+    if (!(await read($, chatter)).includes(e.requestId)) {
+      if (!isTurnLive) settled.add(e.requestId)
+      else if (!settled.has(e.requestId)) drawnThisTurn.add(e.requestId)
 
-    const { Box } = $.ui.resolve(e)
+      return next(e)
+    }
 
-    return <Box />
+    return hide($, e, next)
   })
 }
