@@ -1,0 +1,9 @@
+{
+  "name": "quiet-mode",
+  "version": "0.1.0",
+  "description": "Hide tool calls and in-between chatter, keeping your prompts and Claude's latest reply",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Rob Watson"
+  }
+}

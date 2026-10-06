@@ -1,0 +1,15 @@
+{
+  "name": "claude-mods",
+  "description": "Rob's Claude Code mods",
+  "owner": {
+    "name": "Rob Watson",
+    "email": "robw@raviga.co.uk"
+  },
+  "plugins": [
+    {
+      "name": "quiet-mode",
+      "source": "./quiet-mode",
+      "description": "Hide tool calls and in-between chatter, keeping your prompts and Claude's latest reply"
+    }
+  ]
+}
