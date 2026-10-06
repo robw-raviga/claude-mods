@@ -1,6 +1,6 @@
 {
   "name": "quiet-mode",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Hide tool calls and in-between chatter, keeping your prompts and Claude's latest reply",
   "types": "./types/index.d.ts",
   "author": {

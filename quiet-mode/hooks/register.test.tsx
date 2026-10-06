@@ -2,11 +2,17 @@ import { expect, test } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-const isHidden = async (ui: { drawn: () => Promise<unknown> }) =>
-  ((await ui.drawn()) as { props?: { display?: string } }).props?.display === 'none'
+// Hidden rows draw an empty Box; shown ones carry the app's own drawing.
+const isHidden = async (ui: { drawn: () => Promise<unknown> }) => {
+  const drawn = (await ui.drawn()) as { type: string; children?: unknown[] }
 
+  return drawn.type === 'Box' && (drawn.children ?? []).length === 0
+}
+
+// Stands in for the app: answers with a real engine node, so the app's own rules about where
+// engine nodes may sit apply here too.
 const engineDraws = (on: Parameters<Parameters<typeof test>[1]>[1]) =>
-  on('ui.render', $ => ({ type: 'Text', props: {}, children: ['engine'] }) as never)
+  on('ui.render', () => ({ type: 'engine', ref: 0 }) as never)
 
 test('tool rows hide on the terminal and pass through to the desktop fold', async ($, on) => {
   engineDraws(on)
@@ -25,7 +31,6 @@ test('tool rows hide on the terminal and pass through to the desktop fold', asyn
       },
     })
     expect(await isHidden(ui)).toBe(surface === 'terminal')
-    expect(await ui.find({ text: /engine/ })).toBeDefined()
     await ui.unmount()
   }
 })
@@ -57,4 +62,15 @@ test('a reply followed by a tool call hides, the latest reply shows', async ($, 
     await narration.unmount()
     await final.unmount()
   }
+})
+
+test('/quiet on and off set the mode, bare /quiet toggles', async ($, on) => {
+  const run = async (args: string) =>
+    ((await $.command.run({ command: 'quiet', args } as never)) as { text?: string }).text
+
+  expect(await run('off')).toBe('Quiet mode off.')
+  expect(await run('off')).toBe('Quiet mode off.')
+  expect(await run('on')).toBe('Quiet mode on.')
+  expect(await run('on')).toBe('Quiet mode on.')
+  expect(await run('')).toBe('Quiet mode off.')
 })

@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderElement, RenderInput } from 'claude-code'
+import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Chatter } from '../types'
 
@@ -24,12 +24,11 @@ const showStatus = async ($: EngineInterface, isWorking: boolean) => {
   )
 }
 
-// Like CSS display: none, the app's own drawing stays in the tree, just not shown.
-const hide = async ($: EngineInterface, e: RenderInput, next: (e: RenderInput) => Promise<RenderElement>) => {
-  const drawn = await next(e)
+// The app refuses its own drawing under a Box with `display`, so a hidden row is an empty Box.
+const hide = ($: EngineInterface, e: RenderInput) => {
   const { Box } = $.ui.resolve(e)
 
-  return <Box display="none">{drawn}</Box>
+  return <Box />
 }
 
 export const register: Register = on => {
@@ -47,15 +46,17 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'quiet',
-      description: 'Toggle quiet mode: hide tool calls and in-between chatter',
+      description: 'Quiet mode: hide tool calls and in-between chatter',
+      argumentHint: '[on | off]',
     })
     await showStatus($, false)
 
     return next(e)
   })
 
-  on('command.run', { command: 'quiet' }, async $ => {
-    await update($, isOn, wasOn => !wasOn)
+  on('command.run', { command: 'quiet' }, async ($, e) => {
+    const asked = e.args.trim().toLowerCase()
+    await update($, isOn, wasOn => (asked === 'on' ? true : asked === 'off' ? false : !wasOn))
     await showStatus($, false)
 
     return { text: (await read($, isOn)) ? 'Quiet mode on.' : 'Quiet mode off.' }
@@ -97,7 +98,7 @@ export const register: Register = on => {
     on('ui.render', { component }, async ($, e, next) => {
       if (e.surface === 'desktop' || !(await read($, isOn))) return next(e)
 
-      return hide($, e, next)
+      return hide($, e)
     })
   }
 
@@ -111,6 +112,6 @@ export const register: Register = on => {
       return next(e)
     }
 
-    return hide($, e, next)
+    return hide($, e)
   })
 }
