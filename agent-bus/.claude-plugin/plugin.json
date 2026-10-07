@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "agent-bus",
+  "version": "0.1.0",
+  "description": "Lets Claude Code sessions on this machine message each other through a channel",
+  "author": {
+    "name": "Rob Watson",
+    "email": "robw@raviga.co.uk"
+  },
+  "skills": [
+    "./"
+  ],
+  "channels": [
+    {
+      "server": "agent-bus",
+      "displayName": "agent-bus"
+    }
+  ]
+}

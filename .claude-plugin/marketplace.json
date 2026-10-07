@@ -10,6 +10,11 @@
       "name": "quiet-mode",
       "source": "./quiet-mode",
       "description": "Hide tool calls and in-between chatter, keeping your prompts and Claude's latest reply"
+    },
+    {
+      "name": "agent-bus",
+      "source": "./agent-bus",
+      "description": "Lets Claude Code sessions on this machine message each other through a channel"
     }
   ]
 }

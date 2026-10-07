@@ -1,0 +1,9 @@
+{
+  "name": "claude-channel-agent-bus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
