@@ -15,6 +15,11 @@
       "name": "agent-bus",
       "source": "./agent-bus",
       "description": "Lets Claude Code sessions on this machine message each other through a channel"
+    },
+    {
+      "name": "ledger",
+      "source": "./ledger",
+      "description": "A live pane of this thread's tasks, open questions and decisions, kept up to date by Haiku after every turn"
     }
   ]
 }

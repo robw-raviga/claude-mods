@@ -1,0 +1,10 @@
+{
+  "name": "ledger",
+  "version": "0.1.0",
+  "description": "A live pane of this thread's tasks, open questions and decisions, kept up to date by Haiku after every turn",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Rob Watson",
+    "email": "robw@raviga.co.uk"
+  }
+}
