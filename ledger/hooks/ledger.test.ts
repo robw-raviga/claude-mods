@@ -12,6 +12,7 @@ type Reply = (prompt: string) => string
 // answers from `reply`, and the rest of what the mod calls.
 const bottom = (on: On, reply: Reply) => {
   const prompts: string[] = []
+  const filled: string[] = []
   const stored: Record<string, unknown> = {}
   let latest: Item[] = []
   let turns = 0
@@ -28,6 +29,10 @@ const bottom = (on: On, reply: Reply) => {
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.toast', () => ({ value: undefined }))
+  on('prompt.fill', (_, e) => {
+    filled.push(e.text)
+    return { isFilled: true }
+  })
   on('turn.start', (_, e) => {
     turns += 1
     return { turnId: e.turnId }
@@ -51,7 +56,7 @@ const bottom = (on: On, reply: Reply) => {
     return latest
   }
 
-  return { prompts, settled, items: () => latest, stored }
+  return { prompts, settled, items: () => latest, stored, filled }
 }
 
 const turn = (turnId: string, answer: string) =>
@@ -149,5 +154,10 @@ test('/task adds, /done closes by pane number, and the store keeps it', async ($
   expect((await $.command.run(command('done', '1'))).text).toBe('Nothing open in the ledger.')
 
   expect(world.items().map(i => `${i.text}:${i.status}:${i.source}`)).toEqual(['Ship it:done:user'])
+  expect((await $.command.run(command('go', '1'))).text).toBe('No open tasks in the ledger.')
+  await $.command.run(command('task', 'Check the remote for PRs'))
+  expect((await $.command.run(command('go', '2'))).text).toBe('Usage: /go <1-1>')
+  expect((await $.command.run(command('go', '1'))).text).toBe('In the prompt box, press Enter to send: Check the remote for PRs')
+  expect(world.filled).toEqual(['Please do this task from the ledger: Check the remote for PRs'])
   expect(world.stored['ledger:session-1']).toEqual(world.items())
 })

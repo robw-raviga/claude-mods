@@ -35,6 +35,18 @@ const setItems = async ($: Engine, fn: (list: Item[]) => Item[]) => {
   return next
 }
 
+const taskPrompt = (item: Item) => `Please do this task from the ledger: ${item.text}`
+
+// From a button press: a turn of its own once the session is idle.
+const sendTask = ($: Engine, item: Item) => $.prompt.submit({ text: taskPrompt(item), asUser: true })
+
+// From a slash command the engine refuses a submit (it would wait on the
+// command's own turn), so /go fills the box and the person presses Enter.
+const draftTask = ($: Engine, item: Item) => $.prompt.fill({ text: taskPrompt(item), mode: 'replace' })
+
+const answerQuestion = ($: Engine, item: Item) =>
+  $.prompt.fill({ text: `Re "${item.text}": `, mode: 'replace' })
+
 const mintId = (now: number) => {
   let n = 0
 
@@ -100,6 +112,11 @@ export const register: Register = on => {
       description: 'Mark a ledger item done by its number in the pane',
       argumentHint: '<n>',
     })
+    await $.command.register({
+      name: 'go',
+      description: 'Put a ledger task in the prompt box, by its number in the pane; Enter sends it',
+      argumentHint: '<n>',
+    })
 
     const held = await read($, items)
     if (held.length === 0) {
@@ -141,6 +158,17 @@ export const register: Register = on => {
     await setItems($, all => all.map(item => (item.id === target.id ? { ...item, status: 'done' } : item)))
 
     return { text: `Done: ${target.text}` }
+  })
+
+  on('command.run', { command: 'go' }, async ($, e) => {
+    const n = Number.parseInt(e.args.trim(), 10)
+    const tasks = openItems(await read($, items), 'task')
+    const target = Number.isInteger(n) ? tasks[n - 1] : undefined
+    if (!target) return { text: tasks.length ? `Usage: /go <1-${tasks.length}>` : 'No open tasks in the ledger.' }
+
+    const { isFilled } = await draftTask($, target)
+
+    return { text: isFilled ? `In the prompt box, press Enter to send: ${target.text}` : 'No prompt box to fill here.' }
   })
 
   on('turn.start', ($, e, next) => {
@@ -211,6 +239,12 @@ export const register: Register = on => {
         <Box flexGrow={1}>
           <Text wrap="wrap">{item.text}</Text>
         </Box>
+        {item.kind === 'task' && (
+          <Button key={`send:${item.id}`} label="send" plain onPress={() => sendTask($, item)} />
+        )}
+        {item.kind === 'question' && (
+          <Button key={`answer:${item.id}`} label="answer" plain onPress={() => answerQuestion($, item)} />
+        )}
         <Button key={`done:${item.id}`} label="done" plain onPress={finish(item)} />
       </Box>
     )
@@ -258,7 +292,7 @@ export const register: Register = on => {
         <Box marginTop={1}>
           {state === 'thinking' && <Text dimColor>updating...</Text>}
           {state === 'error' && <Text color="red">{error}</Text>}
-          {state === 'idle' && <Text dimColor>/task to add, /done n to close</Text>}
+          {state === 'idle' && <Text dimColor>/task add, /go n send, /done n close</Text>}
         </Box>
       </Box>
     )
